@@ -1,0 +1,243 @@
+package com.caspian.pichak.service.lotus;
+
+import com.caspian.pichak.exceptions.CoreException;
+import jakarta.annotation.PostConstruct;
+import org.springframework.core.env.Environment;
+import org.springframework.jms.core.JmsTemplate;
+import org.springframework.jndi.JndiObjectFactoryBean;
+import org.springframework.jndi.JndiTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.jms.*;
+import javax.naming.NamingException;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.IllegalStateException;
+import java.text.SimpleDateFormat;
+import java.util.Random;
+import java.util.zip.GZIPInputStream;
+
+@Service
+public class LotusJmsService {
+    private final JndiTemplate jndiTemplate;
+    private final Environment environment;
+    private ConnectionFactory connectionFactory;
+    private ObjectMapper objectMapper;
+    private Destination requestQueue;
+    private Destination responseQueue;
+    private JmsTemplate template;
+
+    public LotusJmsService(JndiTemplate jndiTemplate, Environment environment) {
+        this.jndiTemplate = jndiTemplate;
+        this.environment = environment;
+    }
+
+    private static String createRandomString() {
+        return Long.toHexString((new Random(System.currentTimeMillis())).nextLong());
+    }
+
+    @PostConstruct
+    public void init() throws NamingException {
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S"));
+        JndiObjectFactoryBean factoryBean = new JndiObjectFactoryBean();
+        factoryBean.setJndiTemplate(jndiTemplate);
+        factoryBean.setJndiName(environment.getProperty("lotus.core.connectionFactory"));
+        factoryBean.setExpectedType(ConnectionFactory.class);
+        factoryBean.afterPropertiesSet();
+        connectionFactory = (ConnectionFactory)factoryBean.getObject();
+        JndiObjectFactoryBean jndiRequestBean = new JndiObjectFactoryBean();
+        jndiRequestBean.setJndiTemplate(jndiTemplate);
+        jndiRequestBean.setJndiName(environment.getProperty("gateway.spi.jms.requestQueue"));
+        jndiRequestBean.setExpectedType(Destination.class);
+        jndiRequestBean.afterPropertiesSet();
+        requestQueue = (Destination)jndiRequestBean.getObject();
+        JndiObjectFactoryBean jndiResponseBean = new JndiObjectFactoryBean();
+        jndiResponseBean.setJndiTemplate(jndiTemplate);
+        jndiResponseBean.setJndiName(environment.getProperty("gateway.spi.jms.responseQueue"));
+        jndiResponseBean.setExpectedType(Destination.class);
+        jndiResponseBean.afterPropertiesSet();
+        responseQueue = (Destination)jndiResponseBean.getObject();
+        template = new JmsTemplate();
+        template.setConnectionFactory(connectionFactory);
+        template.setDefaultDestination(requestQueue);
+        template.setReceiveTimeout(environment.getProperty("queue.request.timeout", Long.class));
+        template.setTimeToLive(environment.getProperty("queue.request.timeout", Long.class));
+        template.setSessionTransacted(true);
+        template.setSessionAcknowledgeMode(1);
+        template.afterPropertiesSet();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String send(String username, String branchCode, String serviceId, RequestType requestType, String input) {
+        String RANDOM_STRING = createRandomString();
+        Random random = new Random(System.currentTimeMillis());
+        long randomLong = random.nextLong();
+        template.send(requestQueue, (session) -> {
+            BytesMessage message = session.createBytesMessage();
+            message.setJMSCorrelationID(RANDOM_STRING);
+            message.setStringProperty("channel", environment.getProperty("lotus.core.channel"));
+            message.setStringProperty("clientVersion", environment.getProperty("lotus.core.version"));
+            message.setStringProperty("gatewayVersion", environment.getProperty("lotus.core.version"));
+            message.setStringProperty("filter", environment.getProperty("lotus.core.filter"));
+            message.setStringProperty("serviceId", serviceId);
+            message.setStringProperty("payloadSchema", "object/json");
+            message.setStringProperty("messageType", MessageType.REQUEST.name());
+            message.setStringProperty("requestType", requestType.name());
+            message.setStringProperty("securityAliasName", "lotus-host");
+            message.setStringProperty("transactionType", "INPUT");
+            message.setStringProperty("userCredentials", username + "@" + branchCode + ":IRR");
+            message.setStringProperty("transactionId", Long.toHexString(randomLong));
+
+            try {
+                message.writeBytes(input.getBytes("utf-8"));
+                return message;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        return RANDOM_STRING;
+    }
+
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW
+    )
+    public String send(String username, String branchCode, String serviceId, RequestType requestType, Object input) throws JMSException, IOException, NamingException {
+        String RANDOM_STRING = createRandomString();
+        Random random = new Random(System.currentTimeMillis());
+        long randomLong = random.nextLong();
+         template.send(requestQueue, (session) -> {
+            BytesMessage message = session.createBytesMessage();
+            message.setJMSCorrelationID(RANDOM_STRING);
+            message.setStringProperty("channel", environment.getProperty("lotus.core.channel"));
+            message.setStringProperty("clientVersion", environment.getProperty("lotus.core.version"));
+            message.setStringProperty("gatewayVersion", environment.getProperty("lotus.core.version"));
+            message.setStringProperty("filter", environment.getProperty("lotus.core.filter"));
+            message.setStringProperty("serviceId", serviceId);
+            message.setStringProperty("payloadSchema", "object/json");
+            message.setStringProperty("messageType", MessageType.REQUEST.name());
+            message.setStringProperty("requestType", requestType.name());
+            message.setStringProperty("securityAliasName", "lotus-host");
+            message.setStringProperty("transactionType", "INPUT");
+            message.setStringProperty("userCredentials", username + "@" + branchCode + ":IRR");
+            message.setStringProperty("transactionId", RANDOM_STRING);
+
+            try {
+                message.writeBytes(this.objectMapper.writeValueAsString(input).getBytes("utf-8"));
+                return message;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        return RANDOM_STRING;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public <T> T receive(String correlationId, Class<T> resultClass) throws JMSException, IOException {
+        Message receive = this.template.receiveSelected(this.responseQueue, String.format("JMSCorrelationID='%s'", correlationId));
+        if (receive instanceof BytesMessage) {
+            String responseType = receive.getStringProperty("responseType");
+            if ("FAILED".equals(responseType)) {
+                String s = this.extractMessageBody(receive);
+                throw new CoreException(s);
+            } else {
+                String s = this.extractMessageBody(receive);
+                return this.objectMapper.readValue(s, resultClass);
+            }
+        } else {
+            return null;
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String receive(String correlationId) throws JMSException, IOException {
+        Message receive = null;
+        try {
+            receive = template.receiveSelected(responseQueue, String.format("JMSCorrelationID='%s'", correlationId));
+        }catch (Exception e) {
+            System.out.println("*****************");
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+        if (receive instanceof BytesMessage) {
+            String responseType = receive.getStringProperty("responseType");
+            if ("FAILED".equals(responseType)) {
+                String s = extractMessageBody(receive);
+                throw new CoreException(s);
+            } else {
+                return extractMessageBody(receive);
+            }
+        } else {
+            return null;
+        }
+
+//        Message receive = null;
+//
+//        String selector1 = String.format("JMSCorrelationID = '%s'", correlationId);
+//        String selector2 = String.format("transactionId = '%s'", correlationId);
+//
+//        System.out.println("Trying selector: " + selector1);
+//        receive = template.receiveSelected(responseQueue, selector1);
+//
+//        if (receive == null) {
+//            System.out.println("No response by JMSCorrelationID. Trying selector: " + selector2);
+//            receive = template.receiveSelected(responseQueue, selector2);
+//        }
+//
+//        if (receive == null) {
+//            System.out.println("No JMS response found for id=" + correlationId);
+//            return null;
+//        }
+//
+//        System.out.println("Received JMSCorrelationID=" + receive.getJMSCorrelationID());
+//        System.out.println("Received transactionId=" + receive.getStringProperty("transactionId"));
+//        System.out.println("Received responseFilter=" + receive.getStringProperty("responseFilter"));
+//        System.out.println("Received filter=" + receive.getStringProperty("filter"));
+//
+//        if (receive instanceof BytesMessage) {
+//            String responseType = receive.getStringProperty("responseType");
+//            String body = extractMessageBody(receive);
+//
+//            if ("FAILED".equals(responseType)) {
+//                throw new CoreException(body);
+//            }
+//
+//            return body;
+//        }
+//
+//        return null;
+    }
+
+    private String extractMessageBody(Message receive) throws JMSException, IOException {
+        if (!(receive instanceof BytesMessage)) {
+            throw new IllegalStateException("Text message not supported");
+        } else {
+            BytesMessage bytesMessage = (BytesMessage)receive;
+            byte[] buffer = new byte[(int)bytesMessage.getBodyLength()];
+            bytesMessage.readBytes(buffer);
+            if (!receive.getBooleanProperty("compressed")) {
+                return new String(buffer, "utf-8");
+            } else {
+                ByteArrayInputStream bais = new ByteArrayInputStream(buffer);
+                GZIPInputStream gis = new GZIPInputStream(bais);
+                BufferedReader bf = new BufferedReader(new InputStreamReader(gis, "UTF-8"));
+                StringBuilder outStr = new StringBuilder();
+
+                String line;
+                while((line = bf.readLine()) != null) {
+                    outStr.append(line);
+                }
+
+                bais.close();
+                gis.close();
+                bf.close();
+                return outStr.toString();
+            }
+        }
+    }
+}
