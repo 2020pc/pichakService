@@ -189,7 +189,7 @@ public class IsoParser {
     public  ISOMessageDTO parsIsoMessage(byte[] isoMsg) {
         ISOMessageDTO isoMessageDTO = new ISOMessageDTO();
         MacKeyGenerator macKeyGenerator = new MacKeyGenerator();
-        if (macKeyGenerator.checkMac(utility.hexToBytes(hexKey), isoMsg, 2)) {
+        if (macKeyGenerator.checkMac(utility.hexToBytes("1C1C1C1C1C1C1C1C"), isoMsg, 2)) {
             int index = 0;
             isoMessageDTO.setTotalLength(Integer.parseInt(this.subMsg(isoMsg, index, 2)));
             index += 2;

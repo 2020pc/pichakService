@@ -4,7 +4,6 @@ import com.caspian.banking.ebanking.message.card.MGLoadCardCustomerInfoByNumberM
 import com.caspian.pichak.model.dto.ISOMessageDTO;
 import com.caspian.pichak.utility.AAAServer;
 import com.caspian.pichak.utility.iso.IsoParser;
-//import com.caspian.pichak.repository.ErrorDao;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.pb.ouc.util.util.Utility;
@@ -12,7 +11,6 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSession;
@@ -23,30 +21,21 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Paths;
+
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+
 
 @Service
 public class SocketMultiServer implements Runnable {
-//    @Autowired
-//    private ErrorDao errorDao;
+
     @Value("${tcp.server.port}")
     private Integer port;
-    @Value("${tcp.service.timeout}")
-    private Integer timeout;
-    @Value("${service.id}")
+      @Value("${service.id}")
     private Integer serviceId;
     @Value("${iso.key}")
     private String isoKey;
-    @Value("${server.ssl.enabled}")
-    private boolean serverSslEnabled;
-    private ServerSocket serverSocket;
+        private ServerSocket serverSocket;
     private Utility utility;
-    private String protocol;
     private Gson gson;
 
     @Autowired
@@ -89,92 +78,27 @@ public class SocketMultiServer implements Runnable {
     @PostConstruct
     public void run() {
         this.utility = new Utility();
-        this.protocol = this.serverSslEnabled ? "https://" : "http://";
         this.gson = new Gson();
         this.start(this.port);
     }
 
-    private String callService(ISOMessageDTO msg) throws Exception {
-        String postUrl = this.protocol + "127.0.0.1:8082/digital/atm";
-        String service;
+    private String callService(ISOMessageDTO msg)  {
+
         switch (msg.getServiceCode()) {
             case 2:
                 return atmResource.chequeInquiry(msg);
-            case 3:
-            case 5:
-            case 7:
-            case 9:
-            case 11:
-            default:
-                service = "";
-                break;
             case 4:
                 return atmResource.getCustomerInfo(msg);
             case 6:
-                service = atmResource.chequeRegister(msg);
-                break;
+                return atmResource.chequeRegister(msg);
             case 8:
-                service = atmResource.chequeAccept(msg);
-                break;
+                return atmResource.chequeAccept(msg);
             case 10:
-                service = atmResource.chequeTransfer(msg);
-                break;
+                return atmResource.chequeTransfer(msg);
             case 12:
-                service = atmResource.getChequeAndDebtInquiry(msg);
-        }
-
-//        postUrl = postUrl.concat(service);
-//        JsonObject request = msg.getBody();
-//        request.addProperty("sessionId", msg.getSessionId());
-//        request.addProperty("nationalCode", msg.getUser().getNationalCode());
-//        request.addProperty("shahabCode", msg.getUser().getShahabCode());
-//        request.addProperty("customerId", msg.getUser().getCustomerId());
-//        request.addProperty("name", msg.getUser().getFirstName() + " " + msg.getUser().getLastName());
-//        request.addProperty("clientType", msg.getUser().getClientType());
-//        request.addProperty("rrn", msg.getRrn());
-//        Map<String, String> headerDataMap = new HashMap();
-//        headerDataMap.put("Content-Type", "application/json");
-//        headerDataMap.put("Authorization", "Bearer " + msg.getUser().getAccessToken());
-//        return utility.postCall(postUrl, request.toString(), headerDataMap, this.timeout);
-        return null;
-    }
-
-//    private void getToken(ISOMessageDTO msg) throws Exception {
-//
-//
-////        String tokenUrl = this.protocol + "127.0.0.1:8082/OTP/oauth2/token";
-////        Map<String, String> headerDataMap = new HashMap();
-////        headerDataMap.put("Content-Type", "application/x-www-form-urlencoded");
-////        headerDataMap.put("Authorization", "Basic dGVzdDoxMTExMTE=");
-////        headerDataMap.put("endpoint", "ATM");
-////        String data = "username=ATM_PARSIAN&password=" + this.isoKey + "&grant_type=password&endpoint=atm";
-////        String token = this.utility.postCall(tokenUrl, data, headerDataMap, this.timeout);
-////        JsonObject jsonObject = (JsonObject)this.gson.fromJson(token, JsonObject.class);
-//        String token = localTokenService.createToken(msg.getUser());
-//
-//        ISOMessageDTO.User user = msg.getUser();
-//        user.setAccessToken(token);
-//    }
-
-    private void getLogin(ISOMessageDTO msg) throws Exception {
-        String postUrl = protocol + "127.0.0.1:8082/digital/atm/login";
-        Map<String, String> headerDataMap = new HashMap();
-        headerDataMap.put("Content-Type", "application/json");
-        headerDataMap.put("Authorization", "Bearer " + msg.getUser().getAccessToken());
-        JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("mobile", msg.getUser().getMobile());
-        jsonObject.addProperty("nationalId", msg.getUser().getNationalCode());
-        jsonObject.addProperty("rrn", msg.getRrn());
-        String response = this.utility.postCall(postUrl, jsonObject.toString(), headerDataMap, this.timeout);
-        JsonObject object = gson.fromJson(response, JsonObject.class);
-        JsonObject error = object.getAsJsonObject("error");
-        if (error.get("code").getAsInt() != 0) {
-            throw new Exception(error.toString());
-        } else {
-            JsonObject message = gson.fromJson(object.get("message").getAsString(), JsonObject.class);
-            JsonObject chLoginResponseBean = message.get("chLoginResponseBean").getAsJsonObject();
-            String sessionId = chLoginResponseBean.get("sessionId").getAsString();
-            msg.setSessionId(sessionId);
+                return atmResource.getChequeAndDebtInquiry(msg);
+            default:
+                return "{\"error\":{\"code\":-1,\"message\":\"Service not supported\"}}";
         }
     }
 
@@ -183,7 +107,7 @@ public class SocketMultiServer implements Runnable {
         MGLoadCardCustomerInfoByNumberMsg.Outbound customerInfo;
         try {
 
-            customerInfo = publicResource.getCustomerInfoByPanCore(msg.getPan());
+            customerInfo = atmResource.getCustomerInfoByPanCore(msg.getPan());
         } catch (Exception e) {
             throw new Exception(e.toString());
         }
@@ -199,52 +123,14 @@ public class SocketMultiServer implements Runnable {
             user.setMobile(x.getContactValue());
         });
 
-
-//        JsonObject object = gson.fromJson(response, JsonObject.class);
-//        JsonObject error = object.getAsJsonObject("error");
-//        if (!error.get("code").getAsString().equals("0")) {
-//            throw new Exception(error.toString());
-//        } else {
-//            JsonElement messageElement = gson.fromJson(object.get("message").getAsString(), JsonElement.class);
-//            JsonObject message = messageElement.getAsJsonObject();
-//            JsonObject chCardCustomerInfoResponseBean = message.get("cardCustomerInfoResponseDto").getAsJsonObject();
-//            user.setCustomerId(chCardCustomerInfoResponseBean.get("customerId").getAsString());
-//            user.setNationalCode(chCardCustomerInfoResponseBean.get("nationalCode").getAsString());
-//            user.setShahabCode(message.get("shahabCode").getAsString());
-//            user.setFirstName(chCardCustomerInfoResponseBean.get("firstName").getAsString());
-//            user.setLastName(chCardCustomerInfoResponseBean.get("lastName").getAsString());
-//            user.setClientType(chCardCustomerInfoResponseBean.get("clientType").getAsString());
-//            JsonArray chContactInfoBeanList = message.get("contactInfoDTOS").getAsJsonArray();
-//            chContactInfoBeanList.forEach((o) -> {
-//                if (o.getAsJsonObject().get("contactType").getAsString().equals("M")) {
-//                    user.setMobile(o.getAsJsonObject().get("contactValue").getAsString());
-//                }
-//            });
             msg.setUser(user);
-//        }
     }
 
-    private byte[] hexToBytes(String hex) {
-        int len = hex.length();
-        byte[] data = new byte[len / 2];
 
-        for(int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte)((Character.digit(hex.charAt(i), 16) << 4) + Character.digit(hex.charAt(i + 1), 16));
-        }
 
-        return data;
-    }
 
     static {
-        String jssecacerts = "jssecacerts";
-        if (Files.exists(Paths.get("/var/lotus/certs/jssecacerts"), new LinkOption[0])) {
-            jssecacerts = "/var/lotus/certs/jssecacerts";
-        }
 
-//        System.setProperty("sun.security.ssl.allowUnsafeRenegotiation", "true");
-//        System.setProperty("javax.net.ssl.keyStore", jssecacerts);
-//        System.setProperty("javax.net.ssl.trustStore", jssecacerts);
-//        System.setProperty("javax.net.ssl.keyStorePassword", "changeit");
         HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
             public boolean verify(String hostname, SSLSession sslSession) {
                 if (hostname.equals("127.0.0.1")) {
@@ -295,7 +181,6 @@ public class SocketMultiServer implements Runnable {
                         isoMessageDTO = isoParser.parsIsoMessage(trimBuffer);
                         isoMessageDTO.setRrn(utility.getRRN(serviceId));
                         getUserInfo(isoMessageDTO);
-//                        getToken(isoMessageDTO);
                         String response = callService(isoMessageDTO);
                         isoMessageDTO.setServiceCode(isoMessageDTO.getServiceCode());
                         JsonObject jsonObject = gson.fromJson(response, JsonObject.class);

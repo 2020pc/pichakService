@@ -6,6 +6,7 @@ import com.caspian.banking.ebanking.dto.*;
 import com.caspian.banking.ebanking.dto.deposit.pichak.*;
 import com.caspian.banking.ebanking.message.MGGetWithDrawalConditionCustomersMsg;
 import com.caspian.banking.ebanking.message.MGGetWithDrawalConditionsMsg;
+import com.caspian.banking.ebanking.message.card.MGLoadCardCustomerInfoByNumberMsg;
 import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakAcceptChequeMsg;
 import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakInquiryChequeMsg;
 import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakIssueChequeMsg;
@@ -52,113 +53,7 @@ public class ATMResource extends BaseResource {
     private Util util = new Util();
 
 
-    @RequestMapping(
-            value = {"/changePass"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST})
-    @ResponseBody
-    public String changePass(@RequestBody String message, HttpServletRequest request) {
-        ResponseMessage responseMessage = new ResponseMessage();
-        PichakError error = new PichakError();
 
-        try {
-            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
-            String currentPassword = jsonObject.get("currentPassword").getAsString();
-            String newPassword = jsonObject.get("newPassword").getAsString();
-            ChangePasswordMsg.Inbound inbound = new ChangePasswordMsg.Inbound();
-            ChChangePasswordRequestBean requestBean = new ChChangePasswordRequestBean();
-            requestBean.setCurrentPassword(currentPassword);
-            requestBean.setCurrentPassword(newPassword);
-            inbound.setRequestBean(requestBean);
-            ChangePasswordMsg.Outbound outbound = provider.execute(Util.getChMessageHeader(request), inbound, ChangePasswordMsg.Outbound.class);
-            responseMessage.setMessage(outbound);
-        } catch (ChannelManagerException e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e.getErrorCode(), e.getMessage(),errorCodeNull, errorCodeLatin);
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
-        } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
-        }
-    }
-
-    @RequestMapping(
-            value = {"/getChequeBook"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST})
-    @ResponseBody
-    public String getChequeBook(@RequestBody String message, HttpServletRequest request) {
-        ResponseMessage responseMessage = new ResponseMessage();
-        PichakError error = new PichakError();
-
-        try {
-            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
-            String sessionId = jsonObject.get("sessionId").getAsString();
-            String depositNumber = jsonObject.get("depositNumber").getAsString();
-            GetChequeBookListMsg.Inbound inbound = new GetChequeBookListMsg.Inbound();
-            ChBaseSearchChequeBookRequestBean requestBean = new ChBaseSearchChequeBookRequestBean();
-            requestBean.setDepositNumber(depositNumber);
-            inbound.setBaseSearchChequeBookRequestBean(requestBean);
-            GetChequeBookListMsg.Outbound outbound = provider.execute(Util.getChMessageHeader(request), inbound, GetChequeBookListMsg.Outbound.class, sessionId);
-            responseMessage.setMessage(outbound);
-        } catch (ChannelManagerException e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e.getErrorCode(), e.getMessage(), errorCodeNull, errorCodeLatin);
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
-        } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
-        }
-    }
-
-    @RequestMapping(
-            value = {"/getChequeInfo"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST})
-    @ResponseBody
-    public String getChequeInfo(@RequestBody String message, HttpServletRequest request) {
-        ResponseMessage responseMessage = new ResponseMessage();
-        PichakError error = new PichakError();
-
-        try {
-            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
-            String sessionId = jsonObject.get("sessionId").getAsString();
-            String depositNumber = jsonObject.get("depositNumber").getAsString();
-            GetChequeMsg.Inbound inbound = new GetChequeMsg.Inbound();
-            ChChequeSearchRequestBean requestBean = new ChChequeSearchRequestBean();
-            requestBean.setDepositNumber(depositNumber);
-            requestBean.setChequeNumber(depositNumber);
-            inbound.setChequeSearchRequestBean(requestBean);
-            GetChequeBookListMsg.Outbound outbound = provider.execute(Util.getChMessageHeader(request), inbound, GetChequeBookListMsg.Outbound.class, sessionId);
-            responseMessage.setMessage(outbound);
-        } catch (ChannelManagerException e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e.getErrorCode(), e.getMessage(), errorCodeNull, errorCodeLatin);
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
-        } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
-        }
-    }
-
-    @RequestMapping(
-            path = {"/chequeRegister"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"})
-    @ResponseBody
     public String chequeRegister(@RequestBody ISOMessageDTO message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
@@ -312,18 +207,13 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            path = {"/chequeTransfer"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"})
-    @ResponseBody
+
     public String chequeTransfer(ISOMessageDTO message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-//            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
+
             String sayadId = message.getBody().get("sayadId").getAsString();
             JsonElement toIban = message.getBody().get("toIban");
             String nationalCode = message.getUser().getNationalCode();
@@ -501,12 +391,7 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            path = {"/getWithdrawConditions"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"}
-    )
+
     public String getWithdrawConditions(@RequestBody String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
@@ -536,11 +421,7 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            path = {"/getWithdrawalConditionCustomers"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"})
+
     public String getWithdrawalConditionCustomers(@RequestBody String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
@@ -564,12 +445,7 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            path = {"/ibanEnquiry"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"}
-    )
+
     public String ibanEnquiry( String iban) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
@@ -722,11 +598,7 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            path = {"/chequeAccept"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"})
+
     public String chequeAccept(ISOMessageDTO message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
@@ -795,12 +667,7 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            value = {"/getCustomerInfo"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST})
-    @ResponseBody
+
     public String getCustomerInfo(ISOMessageDTO  message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
@@ -854,12 +721,23 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            value = {"/getChequeAndDebtInquiry"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST})
-    @ResponseBody
+    public MGLoadCardCustomerInfoByNumberMsg.Outbound getCustomerInfoByPanCore(@RequestBody String pan) throws Exception {
+
+
+        try {
+            MGLoadCardCustomerInfoByNumberMsg.Inbound inbound = new MGLoadCardCustomerInfoByNumberMsg.Inbound();
+            inbound.setCardNumber(pan);
+//            inbound.setCardNumber("6221061023186077");
+            inbound.setValidateCvv2AndExpireDate(false);
+            MGLoadCardCustomerInfoByNumberMsg.Outbound res = lotusJmsService.sendInquiry(inbound);
+            return res;
+
+        } catch (Exception e) {
+            AAAServer.logger.error("stack trace", e);
+            throw new Exception(e);
+        }
+    }
+
     public String getChequeAndDebtInquiry(ISOMessageDTO message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();

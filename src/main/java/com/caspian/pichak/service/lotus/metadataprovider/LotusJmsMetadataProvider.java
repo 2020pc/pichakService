@@ -19,8 +19,7 @@ public class LotusJmsMetadataProvider {
     private String clientVersion;
     @Value("${lotus.core.version}")
     private String gatewayVersion;
-    //    @Value("${lotus.core.user}")
-    //    private String userCredentials;
+
     @Value("${lotus.core.default.branchcode}")
     private String defaultBranchCode;
     @Value("${lotus.core.default.user}")
@@ -35,15 +34,15 @@ public class LotusJmsMetadataProvider {
     @Value("${lotus.core.request.expiry.timeout:300000}")
     private int coreRequestExpiryTimeout;
 
-    @Value("${lotus.core.connectionFactory}")
+    @Value("${gateway.spi.jms.connectionFactory}")
     private String factoryJndiName;
     @Value("${lotus.core.dateFormat:yyyy-MM-dd HH:mm:ss.S}")
     private String coreDateFormat;
-    @Value("${lotus.core.request.queue}")
+    @Value("${gateway.spi.jms.requestQueue}")
     private String reqJndiName;
-    @Value("${lotus.core.response.queue}")
+    @Value("${gateway.spi.jms.responseQueue}")
     private String resJndiName;
-    @Value("${lotus.weblogic.url}")
+    @Value("${gateway.spi.jms.provider.url}")
     private String lotusWeblogicUrl;
     //------------------------------------------------------
 

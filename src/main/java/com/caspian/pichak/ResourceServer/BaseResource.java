@@ -1,18 +1,14 @@
 package com.caspian.pichak.ResourceServer;
 
 
-import com.caspian.moderngateway.spi.service.ChannelManagerProvider;
 import com.caspian.moderngateway.spi.service.JmsChannelManagerProvider;
-import com.caspian.pichak.service.OTPService;
 import com.caspian.pichak.service.lotus.LotusJmsService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Configurable;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.util.List;
 import java.util.Map;
 
 @Configurable
@@ -25,12 +21,6 @@ public class BaseResource {
     protected String coreBranchcode;
     @Autowired
     protected Gson gson;
-    @Value("${error.code.null}")
-    protected String errorCodeNull;
-    @Value("#{'${vekalati.deposit.type.list}'.split(',')}")
-    protected List<String> vekalatiDepositTypeList;
-    @Value("${error.code.latin}")
-    protected Boolean errorCodeLatin;
     @Autowired
     protected JmsChannelManagerProvider provider;
 

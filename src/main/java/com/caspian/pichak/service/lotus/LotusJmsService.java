@@ -64,7 +64,7 @@ public class LotusJmsService   {
         this.objectMapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S"));
         JndiObjectFactoryBean factoryBean = new JndiObjectFactoryBean();
         factoryBean.setJndiTemplate(jndiTemplate);
-        factoryBean.setJndiName(environment.getProperty("lotus.core.connectionFactory"));
+        factoryBean.setJndiName(environment.getProperty("gateway.spi.jms.connectionFactory"));
         factoryBean.setExpectedType(ConnectionFactory.class);
         factoryBean.afterPropertiesSet();
         connectionFactory = (ConnectionFactory)factoryBean.getObject();
