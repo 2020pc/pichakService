@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.springframework.util.StringUtils;
 
-public class PichakError {
+public class PichakError  {
     private String code;
     private String message;
 

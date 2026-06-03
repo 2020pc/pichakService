@@ -2,10 +2,9 @@ package com.caspian.pichak.ResourceServer;
 
 
 import com.caspian.moderngateway.spi.service.ChannelManagerProvider;
+import com.caspian.moderngateway.spi.service.JmsChannelManagerProvider;
 import com.caspian.pichak.service.OTPService;
 import com.caspian.pichak.service.lotus.LotusJmsService;
-import com.caspian.pichak.repository.AuthorityDao;
-import com.caspian.pichak.repository.CustomUserDao;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,16 +32,7 @@ public class BaseResource {
     @Value("${error.code.latin}")
     protected Boolean errorCodeLatin;
     @Autowired
-    protected CustomUserDao customUserDao;
-    @Autowired
-    protected AuthorityDao authorityDao;
-    @Autowired
-    protected CustomUserDao userDao;
-    @Autowired
-    @Qualifier("otpService")
-    protected OTPService otpService;
-    @Autowired
-    protected ChannelManagerProvider provider;
+    protected JmsChannelManagerProvider provider;
 
     public static void main(String[] args) {
         String myJSONString = "{'test': '100.00'}";

@@ -1,9 +1,18 @@
 package com.caspian.pichak.service.lotus;
 
+import com.caspian.banking.exception.SystemException;
+import com.caspian.banking.message.MessageType;
+import com.caspian.banking.message.RequestType;
 import com.caspian.pichak.exceptions.CoreException;
+import com.caspian.pichak.service.lotus.messagecreatorprovider.MessageCreatorProvider;
+import com.caspian.pichak.service.lotus.model.MessagePropertiesModel;
+import com.caspian.pichak.service.lotus.receiver.MessageReceiver;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.jms.core.JmsTemplate;
+import org.springframework.jms.core.MessageCreator;
 import org.springframework.jndi.JndiObjectFactoryBean;
 import org.springframework.jndi.JndiTemplate;
 import org.springframework.stereotype.Service;
@@ -23,18 +32,26 @@ import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 @Service
-public class LotusJmsService {
+public class LotusJmsService   {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LotusJmsService.class);
+
     private final JndiTemplate jndiTemplate;
     private final Environment environment;
+    private final JmsTemplate jmsTemplate;
     private ConnectionFactory connectionFactory;
     private ObjectMapper objectMapper;
     private Destination requestQueue;
     private Destination responseQueue;
     private JmsTemplate template;
+    private final MessageCreatorProvider messageCreatorProvider;
+    private final MessageReceiver messageReceiver;
 
-    public LotusJmsService(JndiTemplate jndiTemplate, Environment environment) {
+    public LotusJmsService(JndiTemplate jndiTemplate, Environment environment, MessageCreatorProvider messageCreatorProvider, MessageReceiver messageReceiver, JmsTemplate jmsTemplate) {
         this.jndiTemplate = jndiTemplate;
         this.environment = environment;
+        this.messageCreatorProvider = messageCreatorProvider;
+        this.messageReceiver = messageReceiver;
+        this.jmsTemplate = jmsTemplate;
     }
 
     private static String createRandomString() {
@@ -102,6 +119,36 @@ public class LotusJmsService {
             }
         });
         return RANDOM_STRING;
+    }
+
+    public <I, O> O sendInquiry(final I inbound) throws JMSException, IOException, SystemException {
+        final MessagePropertiesModel messageProperties = new MessagePropertiesModel.Builder().setRequestType(RequestType.INQUIRY).build();
+        return send(inbound, messageProperties);
+    }
+    public <I, O> O send(final I inbound, final MessagePropertiesModel messageProperties) throws JMSException, IOException, SystemException {
+        final Class<?> outboundClass = MessageHelper.INSTANCE.getOutboundClass(inbound);
+//        LOGGER.debug("Sending with outbound class: " + ((outboundClass == null) ? null : outboundClass.getName()));
+        return (O) send(inbound, outboundClass, messageProperties);
+    }
+
+    public <I, O> O send(final I inbound, final Class<O> outboundClass, final MessagePropertiesModel messageProperties) throws JMSException, IOException, SystemException {
+        final String messageCorrelationID = send0(inbound, messageProperties);
+        return receive0(messageCorrelationID, outboundClass);
+    }
+
+    protected <I> String send0(final I inbound, final MessagePropertiesModel messageProperties) {
+        final String messageCorrelationID = MessageHelper.INSTANCE.createRandomString();
+        final MessageCreator messageCreator = messageCreatorProvider.provide(inbound, messageProperties, messageCorrelationID);
+       jmsTemplate.send(requestQueue, messageCreator);
+        LOGGER.info("Message Sent successfully with correlationID:" + messageCorrelationID);
+        return messageCorrelationID;
+    }
+
+    protected <O> O receive0(final String messageCorrelationID, final Class<O> outboundClass) throws JMSException, IOException, SystemException {
+        final String formattedMessageCorrelationID = messageReceiver.formatMessageCorrelationID(messageCorrelationID);
+        final Message receivedMessage = jmsTemplate.receiveSelected(responseQueue, formattedMessageCorrelationID);
+        LOGGER.info("Message received successfully with correlationID:" + messageCorrelationID);
+        return messageReceiver.handledBytesMessage(receivedMessage, outboundClass);
     }
 
     @Transactional(

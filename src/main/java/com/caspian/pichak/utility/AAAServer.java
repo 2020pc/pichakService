@@ -17,22 +17,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class AAAServer {
     public static final Logger logger = LogManager.getLogger(AAAServer.class);
-    public static final List<Integer> num = Arrays.asList(1, 2, 3, 4, 5);
-    @Autowired
-    private Environment environment;
+//    public static final List<Integer> num = Arrays.asList(1, 2, 3, 4, 5);
+//    @Autowired
+//    private Environment environment;
 
-    @Bean
-    public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
-        return new PropertySourcesPlaceholderConfigurer();
-    }
+//    @Bean
+//    public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
+//        return new PropertySourcesPlaceholderConfigurer();
+//    }
 
-    @Bean
-    public JndiTemplate jndiTemplate() {
-        JndiTemplate template = new JndiTemplate();
-        Properties properties = new Properties();
-        properties.setProperty("java.naming.factory.initial", "weblogic.jndi.WLInitialContextFactory");
-        properties.setProperty("java.naming.provider.url", this.environment.getProperty("lotus.weblogic.url"));
-        template.setEnvironment(properties);
-        return template;
-    }
+//    @Bean
+//    public JndiTemplate jndiTemplate() {
+//        JndiTemplate template = new JndiTemplate();
+//        Properties properties = new Properties();
+//        properties.setProperty("java.naming.factory.initial", "weblogic.jndi.WLInitialContextFactory");
+//        properties.setProperty("java.naming.provider.url", this.environment.getProperty("lotus.weblogic.url"));
+//        template.setEnvironment(properties);
+//        return template;
+//    }
 }

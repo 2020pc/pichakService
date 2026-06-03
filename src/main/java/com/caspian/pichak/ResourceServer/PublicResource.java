@@ -20,39 +20,19 @@ import com.caspian.banking.lending.message.samat.applicant.ApplicantDebitInquiry
 import com.caspian.banking.lending.message.samat.applicant.ApplicantGuarantorInquiryMsg;
 import com.caspian.banking.lending.message.samat.applicant.ApplicantObligationInquiryMsg;
 import com.caspian.banking.lending.message.spl.GetCustomerInformationMsg;
+import com.caspian.banking.message.RequestType;
 import com.caspian.banking.model.dto.ChCustomerExistenceInquiryRequestDto;
 import com.caspian.banking.model.messages.MGCustomerExistenceInquiryMsg;
-import com.caspian.banking.outputmanagement.message.SendSmsForSelectedMobileNumberMsg;
-import com.caspian.moderngateway.core.channelmanagerinfrastructure.exception.ChannelManagerException;
-import com.caspian.moderngateway.core.channelmanagerinfrastructure.util.ChannelType;
-import com.caspian.moderngateway.core.coreservice.dto.card.ChCardCustomerInfoResponseBean;
-import com.caspian.moderngateway.core.coreservice.dto.card.ChContactInfoBean;
-import com.caspian.moderngateway.core.coreservice.dto.card.ChLoadCardCustomerInfoByNumberRequestBean;
-import com.caspian.moderngateway.core.domainmodel.dto.user.otheruser.ChOtherUserGender;
-import com.caspian.moderngateway.core.domainmodel.dto.user.otheruser.ChOtherUserInfoRequestBean;
-import com.caspian.moderngateway.core.domainmodel.dto.user.otheruser.VirtualOtherUserRequestBean;
-import com.caspian.moderngateway.core.message.card.LoadCardCustomerInfoByNumberMsg;
-import com.caspian.moderngateway.core.message.otheruser.CreateModernGatewayOtherUserMsg;
 import com.caspian.pichak.exceptions.CoreException;
 import com.caspian.pichak.model.dto.PichakError;
 import com.caspian.pichak.model.dto.ResponseMessage;
-import com.caspian.pichak.model.entity.Authority;
-import com.caspian.pichak.model.entity.UserAuthority;
-import com.caspian.pichak.model.entity.Users;
 import com.caspian.pichak.service.lotus.LotusJmsService;
-import com.caspian.pichak.service.lotus.RequestType;
 import com.caspian.pichak.type.NationalCodeType;
 import com.caspian.pichak.utility.AAAServer;
-import com.caspian.pichak.utility.Util;
-import com.caspian.pichak.repository.SettingRepository;
-import com.caspian.pichak.repository.UserAuthorityDao;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.pb.ouc.totp.dto.OtpResponseDTO;
-import com.pb.ouc.util.util.HttpParamMaker;
 import com.pb.ouc.util.util.Utility;
 import jakarta.servlet.http.HttpServletRequest;
-import org.apache.logging.log4j.util.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -63,10 +43,6 @@ import java.util.*;
 @RestController
 @RequestMapping({"/OTP/public"})
 public class PublicResource extends BaseResource {
-    @Autowired
-    private SettingRepository settingRepository;
-    @Autowired
-    private UserAuthorityDao userAuthorityDao;
     @Autowired
     private LotusJmsService lotusJmsService;
     @Value("${lotus.core.username}")
@@ -89,117 +65,7 @@ public class PublicResource extends BaseResource {
     @Value("${shahkar.serviceType}")
     private String serviceType;
 
-    @RequestMapping(
-            value = {"/sendOtp"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST}
-    )
-    @ResponseBody
-    public String senOtp(@RequestBody String message, HttpServletRequest servletRequest) {
-        ResponseMessage responseMessage = new ResponseMessage();
-        PichakError error = new PichakError();
 
-        try {
-            AAAServer.logger.info("****start****");
-            JsonObject jsonObject = (JsonObject)this.gson.fromJson(message, JsonObject.class);
-            String mobile = jsonObject.get("mobile").getAsString();
-            String nationalId = jsonObject.get("nationalId").getAsString();
-            Map<String, String> header = new HashMap();
-            header.put("force", "true");
-            header.put("Content-Type", "application/json");
-            HttpParamMaker httpParamMaker = new HttpParamMaker();
-            httpParamMaker.put("serviceNumber", mobile);
-            httpParamMaker.put("identificationNo", nationalId);
-            httpParamMaker.put("identificationType", this.identificationType);
-            httpParamMaker.put("serviceType", this.serviceType);
-            String shahkarResponse = this.utility.postCall(this.shahkarUrl, this.gson.toJson(httpParamMaker), header);
-            JsonObject shahkarObject = (JsonObject)this.gson.fromJson(shahkarResponse, JsonObject.class);
-            Integer code = shahkarObject.get("response").getAsInt();
-            String shahkarResult = shahkarObject.get("result").getAsString();
-            AAAServer.logger.info("code:" + code);
-            AAAServer.logger.info("shahkarResult:" + shahkarResult);
-            if (code == 200 && shahkarResult.equals("OK.")) {
-                this.createOtherUser(mobile, nationalId);
-                AAAServer.logger.info("befor otpService.sendOtp");
-                OtpResponseDTO otpResponseDTO = otpService.sendOtp(mobile);
-                SendSmsForSelectedMobileNumberMsg.Inbound inbound = new SendSmsForSelectedMobileNumberMsg.Inbound();
-                inbound.setMobileNumber(mobile);
-                StringBuilder sms = new StringBuilder(this.otpPreText);
-                sms.append("\n");
-                sms.append(otpResponseDTO.getOtp());
-                sms.append("\n");
-                String origin = servletRequest.getHeader("Origin");
-                AAAServer.logger.info("origin:" + origin);
-                if (origin != null && origin.contains("vekalati")) {
-                    sms.append(this.otpPostVekalati);
-                } else if (origin != null && origin.contains("pichak")) {
-                    sms.append(this.otpPostPichak);
-                } else {
-                    sms.append(this.otpPostText);
-                }
-
-                inbound.setSmsMessage(sms.toString());
-                String id = this.lotusJmsService.send(this.coreUsername, this.coreBranchcode, "outputmanagement.message.sendSmsForSelectedobileNumberMsg", RequestType.TRANSACTION, inbound);
-                Object result = this.lotusJmsService.receive(id, SendSmsForSelectedMobileNumberMsg.Outbound.class);
-                AAAServer.logger.info(result);
-                AAAServer.logger.debug(otpResponseDTO.toString(), new Supplier[]{() -> AAAServer.num});
-                Map<String, String> map = new HashMap();
-                map.put("remainingTimeInSeconds", String.valueOf(otpResponseDTO.getRemainingTimeInSeconds()));
-                map.put("addedTime", String.valueOf(otpResponseDTO.getAddedTime()));
-                responseMessage.setMessage(map);
-            } else {
-                throw new Exception("این شماره موبایل متعلق به شما نمی باشد");
-            }
-        } catch (ChannelManagerException e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e.getErrorCode(), e.getMessage(), this.errorCodeNull, this.errorCodeLatin);
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
-        } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
-        }
-    }
-
-    private void createOtherUser(String mobile, String nationalId) throws ChannelManagerException {
-        AAAServer.logger.info("before user");
-        com.caspian.pichak.model.entity.Users user = this.customUserDao.findByUsername(nationalId);
-        AAAServer.logger.info("user:" + user);
-        if (user == null) {
-            CreateModernGatewayOtherUserMsg.Inbound inbound = new CreateModernGatewayOtherUserMsg.Inbound();
-            VirtualOtherUserRequestBean virtualOtherUserRequestBean = new VirtualOtherUserRequestBean();
-            virtualOtherUserRequestBean.setChannelType(ChannelType.MOBILE_BANK);
-            virtualOtherUserRequestBean.setMobileNo(nationalId);
-            virtualOtherUserRequestBean.setPlainPassword(mobile.concat(nationalId));
-            virtualOtherUserRequestBean.setSelectedPasswordByUser(false);
-            ChOtherUserInfoRequestBean chOtherUserInfoRequestBean = new ChOtherUserInfoRequestBean();
-            chOtherUserInfoRequestBean.setGender(ChOtherUserGender.MALE);
-            chOtherUserInfoRequestBean.setNationalCode(nationalId);
-            chOtherUserInfoRequestBean.setMobileNo(mobile);
-            virtualOtherUserRequestBean.setChOtherUserInfoRequestBean(chOtherUserInfoRequestBean);
-            inbound.setRequestBean(virtualOtherUserRequestBean);
-            CreateModernGatewayOtherUserMsg.Outbound outbound = (CreateModernGatewayOtherUserMsg.Outbound)this.provider.execute(inbound, CreateModernGatewayOtherUserMsg.Outbound.class);
-            AAAServer.logger.info("befor authorityDao.findByName(ROLE_USER)");
-            Authority authority = this.authorityDao.findByName("ROLE_USER");
-            AAAServer.logger.info("after authorityDao.findByName(ROLE_USER)");
-            user = new Users();
-            user.setUserName(nationalId);
-            user.setPassword(outbound.getResponseBean().getPassword());
-            user.setEnabled(true);
-            user.setAccountExpired(false);
-            user.setAccountLocked(false);
-            user.setCredentialsExpired(false);
-            this.userDao.save(user);
-            UserAuthority userAuthority = new UserAuthority();
-            userAuthority.setAuthority(authority);
-            userAuthority.setUsers(user);
-            this.userAuthorityDao.save(userAuthority);
-        }
-
-    }
 
     @RequestMapping(
             value = {"/getMilitaryStatusInquiry"},
@@ -559,51 +425,12 @@ public class PublicResource extends BaseResource {
     }
 
     @RequestMapping(
-            path = {"/getCustomerInfoByPan"},
-            method = {RequestMethod.POST},
-            produces = {"application/json"},
-            consumes = {"application/json"}
-    )
-    public String getCustomerInfoByPan(@RequestBody String message, HttpServletRequest request) {
-        ResponseMessage responseMessage = new ResponseMessage();
-        PichakError error = new PichakError();
-
-        try {
-            JsonObject jsonObject = (JsonObject)this.gson.fromJson(message, JsonObject.class);
-            String pan = jsonObject.get("pan").getAsString();
-            LoadCardCustomerInfoByNumberMsg.Inbound inbound = new LoadCardCustomerInfoByNumberMsg.Inbound();
-            ChLoadCardCustomerInfoByNumberRequestBean requestBean = new ChLoadCardCustomerInfoByNumberRequestBean();
-            requestBean.setCardNumber(pan);
-            inbound.setRequestBean(requestBean);
-            LoadCardCustomerInfoByNumberMsg.Outbound outbound = (LoadCardCustomerInfoByNumberMsg.Outbound)this.provider.execute(Util.getChMessageHeader(request), inbound, LoadCardCustomerInfoByNumberMsg.Outbound.class);
-            ChCardCustomerInfoResponseBean chCardCustomerInfoResponseBean = outbound.getResponseBean().getChCardCustomerInfoResponseBean();
-            List<ChContactInfoBean> chContactInfoBeanList = outbound.getResponseBean().getChContactInfoBeanList();
-            String mobile = "";
-            Iterator var13 = chContactInfoBeanList.iterator();
-            if (var13.hasNext()) {
-                ChContactInfoBean chContactInfoBean = (ChContactInfoBean)var13.next();
-                mobile = chContactInfoBean.getContactValue();
-            }
-
-            this.createOtherUser(mobile, chCardCustomerInfoResponseBean.getNationalCode());
-            responseMessage.setMessage(outbound);
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
-        } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
-        }
-    }
-
-    @RequestMapping(
             path = {"/getCustomerInformation"},
             method = {RequestMethod.POST},
             produces = {"application/json"},
             consumes = {"application/json"}
     )
-    public String getCustomerInformation(@RequestBody String message, HttpServletRequest request) {
+    public String getCustomerInformation(@RequestBody String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
@@ -631,37 +458,36 @@ public class PublicResource extends BaseResource {
             produces = {"application/json"},
             consumes = {"application/json"}
     )
-    public String getCustomerInfoByPanCore(@RequestBody String message, HttpServletRequest request) {
+    public MGLoadCardCustomerInfoByNumberMsg.Outbound getCustomerInfoByPanCore(@RequestBody String pan) throws Exception {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
-            String pan = jsonObject.get("pan").getAsString();
             MGLoadCardCustomerInfoByNumberMsg.Inbound inbound = new MGLoadCardCustomerInfoByNumberMsg.Inbound();
             inbound.setCardNumber(pan);
 //            inbound.setCardNumber("6221061023186077");
             inbound.setValidateCvv2AndExpireDate(false);
-            String id = lotusJmsService.send(coreUsername, coreBranchcode, "channelManagement.MGLoadCardCustomerInfoByNumber", RequestType.TRANSACTION, inbound);
-            String outbound = lotusJmsService.receive(id);
-            JsonObject responseObj = gson.fromJson(outbound, JsonObject.class);
-            JsonObject requestMsg = new JsonObject();
-            JsonObject cardCustomerInfoResponseDto = responseObj.get("cardCustomerInfoResponseDto").getAsJsonObject();
-            requestMsg.add("customerNumber", cardCustomerInfoResponseDto.get("customerId"));
-            String customerInformation = this.getCustomerInformation(gson.toJson(requestMsg), request);
-            JsonObject customerInformationObj = gson.fromJson(customerInformation, JsonObject.class);
-            JsonElement customerInformationMessage = gson.fromJson(customerInformationObj.get("message").getAsString(), JsonElement.class);
-            JsonObject messageObj = gson.fromJson(customerInformationMessage.getAsString(), JsonObject.class);
-            JsonObject customerDTO = messageObj.get("customerDTO").getAsJsonObject();
-            responseObj.add("shahabCode", customerDTO.get("shahabCode"));
-            responseMessage.setMessage(responseObj);
+            MGLoadCardCustomerInfoByNumberMsg.Outbound res = lotusJmsService.sendInquiry(inbound);
+            return res;
+//            MGLoadCardCustomerInfoByNumberMsg.Outbound res =  lotusJmsService.receive(id);
+//            JsonObject responseObj = gson.fromJson(outbound, JsonObject.class);
+//            JsonObject requestMsg = new JsonObject();
+//            JsonObject cardCustomerInfoResponseDto = responseObj.get("cardCustomerInfoResponseDto").getAsJsonObject();
+//            requestMsg.add("customerNumber", cardCustomerInfoResponseDto.get("customerId"));
+//            String customerInformation = this.getCustomerInformation(gson.toJson(requestMsg));
+//            JsonObject customerInformationObj = gson.fromJson(customerInformation, JsonObject.class);
+//            JsonElement customerInformationMessage = gson.fromJson(customerInformationObj.get("message").getAsString(), JsonElement.class);
+//            JsonObject messageObj = gson.fromJson(customerInformationMessage.getAsString(), JsonObject.class);
+//            JsonObject customerDTO = messageObj.get("customerDTO").getAsJsonObject();
+//            responseObj.add("shahabCode", customerDTO.get("shahabCode"));
+//            responseMessage.setMessage(responseObj);
         } catch (Exception e) {
             AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
+           throw new Exception(e);
         } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
+//            responseMessage.setError(error);
+//            AAAServer.logger.info(responseMessage.toString());
+//            return responseMessage.toString();
         }
     }
 
@@ -694,32 +520,4 @@ public class PublicResource extends BaseResource {
         }
     }
 
-    @RequestMapping(
-            value = {"/getSetting"},
-            produces = {"application/json"},
-            consumes = {"application/json"},
-            method = {RequestMethod.POST}
-    )
-    @ResponseBody
-    public String getSetting(@RequestBody String message, HttpServletRequest request) {
-        ResponseMessage responseMessage = new ResponseMessage();
-        PichakError error = new PichakError();
-
-        try {
-            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
-            JsonElement keyElement = jsonObject.get("key");
-            if (keyElement != null) {
-                responseMessage.setMessage(settingRepository.findByKey(keyElement.getAsString()));
-            } else {
-                responseMessage.setMessage(settingRepository.findAllActive());
-            }
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            error = new PichakError(e);
-        } finally {
-            responseMessage.setError(error);
-            AAAServer.logger.info(responseMessage.toString());
-            return responseMessage.toString();
-        }
-    }
 }
