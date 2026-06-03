@@ -58,9 +58,6 @@ public class LotusJmsMetadataProvider {
         return gatewayVersion.trim();
     }
 
-//    public String getUserCredentials() {
-//        return userCredentials;
-//    }
 
     public String getDefaultBranchCode() {
         return defaultBranchCode.trim();

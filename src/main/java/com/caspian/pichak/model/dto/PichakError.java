@@ -22,23 +22,6 @@ public class PichakError  {
 
     }
 
-    public PichakError(String code, String message, String errorCodeNull, Boolean errorCodeLatin) {
-//        AAAServer.logger.info("Exception is:\ncode: " + code + "\nmessage: " + message);
-        this.code = code;
-        this.message = message;
-        if (message.contains("Invalid SessionId")) {
-            this.code = "401";
-        }
-
-        if (!errorCodeLatin) {
-            this.message = message.replaceAll("[^\\p{InARABIC}\\s]", "");
-        }
-
-        if (StringUtils.isEmpty(message)) {
-            this.message = "خطای ارتباطی رخ داده است خواهشمند است برای استفاده از سامانه چند لحظه دیگر مجددا تلاش نمایید";
-        }
-
-    }
 
     public PichakError(String code, String message) {
         this.message = message;

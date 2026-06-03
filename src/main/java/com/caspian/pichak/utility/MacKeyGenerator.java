@@ -12,29 +12,6 @@ import java.util.Arrays;
 public class MacKeyGenerator {
     private Utility utility = new Utility();
 
-    public static void main(String[] args) {
-        try {
-            MacKeyGenerator macKeyGenerator = new MacKeyGenerator();
-            byte[] hexKeyBytes = macKeyGenerator.utility.hexToBytes("F200B1E948D327B5");
-            byte[] text = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0};
-            byte[] mac = macKeyGenerator.generateMac(hexKeyBytes, text);
-            byte[] len = (new BigInteger(String.valueOf(text.length + mac.length))).toByteArray();
-            len = macKeyGenerator.utility.addPadding(len, 2);
-            byte[] texToBytes = new byte[text.length + mac.length + len.length];
-            int index = 0;
-            System.arraycopy(len, 0, texToBytes, index, len.length);
-            index += len.length;
-            System.arraycopy(text, 0, texToBytes, index, text.length);
-            index += text.length;
-            System.arraycopy(mac, 0, texToBytes, index, mac.length);
-            int var10000 = index + mac.length;
-            boolean b = macKeyGenerator.checkMac(hexKeyBytes, texToBytes, 2);
-            System.out.println("hexMac=" + b);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
 
     public byte[] generateMac(byte[] key, byte[] data) {
         int loc = 0;
@@ -60,7 +37,7 @@ public class MacKeyGenerator {
 
             return edata;
         } catch (Exception e) {
-            e.printStackTrace();
+            AAAServer.logger.error("Error generateMac", e);
             return null;
         }
     }
@@ -75,7 +52,7 @@ public class MacKeyGenerator {
         try {
             genMac = this.generateMac(key, pdata);
         } catch (Exception e) {
-            e.printStackTrace();
+            AAAServer.logger.error("Error checkMac", e);
             boolean var8 = false;
         } finally {
             return this.utility.toHex(genMac).equals(this.utility.toHex(mac));

@@ -1,38 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="DEBUG">
+<Configuration status="WARN">
     <Appenders>
+        <!-- Console: Show all INFO and above -->
         <Console name="LogToConsole" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </Console>
+
+        <!-- File: Only INFO and above for your app -->
         <RollingFile name="RollingFile" fileName="logs/app.log"
                      filePattern="logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
             <PatternLayout>
                 <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
             </PatternLayout>
             <Policies>
-                <!--<TimeBasedTriggeringPolicy interval="6" modulate="true"/>-->
-                <TimeBasedTriggeringPolicy/>
-                <SizeBasedTriggeringPolicy size="20 MB"/>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="50 MB"/>
             </Policies>
+            <DefaultRolloverStrategy max="30"/>
         </RollingFile>
-        <!-- <Syslog name="RFC5424" format="RFC5424" host="192.168.243.25" port="514"
-                 protocol="UDP" appName="MyApp" includeMDC="true"
-                 facility="LOCAL0" enterpriseNumber="18060" newLine="true"
-                 messageId="Audit" id="App"/>-->
+
+        <!-- Error-only file for exceptions -->
+        <RollingFile name="ErrorFile" fileName="logs/error.log"
+                     filePattern="logs/$${date:yyyy-MM}/error-%d{MM-dd-yyyy}-%i.log.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="50 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
     </Appenders>
+
     <Loggers>
-        <Logger name="com.caspco" level="debug" additivity="false">
+        <!-- Your package: INFO level to both console and file -->
+        <Logger name="com.caspian" level="info" additivity="false">
             <AppenderRef ref="LogToConsole"/>
             <AppenderRef ref="RollingFile"/>
-            <!--<AppenderRef ref="RFC5424"/>-->
+            <AppenderRef ref="ErrorFile" level="error"/>
         </Logger>
-        <Logger name="org.springframework.boot" level="error" additivity="false">
+
+        <!-- Spring Framework: WARN+ to console only (reduce noise) -->
+        <Logger name="org.springframework" level="warn" additivity="false">
             <AppenderRef ref="LogToConsole"/>
         </Logger>
+
+        <!-- WebLogic/JMS: ERROR only -->
+        <Logger name="weblogic" level="error" additivity="false">
+            <AppenderRef ref="LogToConsole"/>
+            <AppenderRef ref="ErrorFile"/>
+        </Logger>
+
+        <!-- JMS/LOTUS: INFO to file only -->
+        <Logger name="com.casp.jms" level="info" additivity="false">
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile" level="error"/>
+        </Logger>
+
+        <!-- Root: ERROR only (catches everything else) -->
         <Root level="error">
             <AppenderRef ref="LogToConsole"/>
-            <AppenderRef ref="RollingFile"/>
-            <!--<AppenderRef ref="RFC5424"/>-->
+            <AppenderRef ref="ErrorFile"/>
         </Root>
     </Loggers>
 </Configuration>

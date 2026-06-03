@@ -12,9 +12,7 @@ import lombok.NonNull;
 import javax.xml.datatype.DatatypeConfigurationException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.Date;
 
 public class IsoParser {
@@ -29,14 +27,7 @@ public class IsoParser {
         this.hexKey = hexKey;
     }
 
-    public static void main(String[] args) {
-        new IsoParser();
-        Utility utility = new Utility();
-        byte[] msg = utility.hexToBytes("002866610200D66353000399B7112233445566778811122233344455500000000000EFF4DABA0876F262");
-        IsoParser isoParser = new IsoParser();
-        ISOMessageDTO isoMessageDTO = isoParser.parsIsoMessage(msg);
-        System.out.printf(new String(msg));
-    }
+
 
     public String createBlockWithLength(String text) {
         return text.length() + text;

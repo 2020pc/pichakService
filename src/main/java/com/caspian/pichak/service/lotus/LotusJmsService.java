@@ -7,6 +7,7 @@ import com.caspian.pichak.exceptions.CoreException;
 import com.caspian.pichak.service.lotus.messagecreatorprovider.MessageCreatorProvider;
 import com.caspian.pichak.service.lotus.model.MessagePropertiesModel;
 import com.caspian.pichak.service.lotus.receiver.MessageReceiver;
+import com.caspian.pichak.utility.AAAServer;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,13 +152,10 @@ public class LotusJmsService   {
         return messageReceiver.handledBytesMessage(receivedMessage, outboundClass);
     }
 
-    @Transactional(
-            propagation = Propagation.REQUIRES_NEW
-    )
-    public String send(String username, String branchCode, String serviceId, RequestType requestType, Object input) throws JMSException, IOException, NamingException {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String send(String username, String branchCode, String serviceId, RequestType requestType, Object input) {
         String RANDOM_STRING = createRandomString();
         Random random = new Random(System.currentTimeMillis());
-        long randomLong = random.nextLong();
          template.send(requestQueue, (session) -> {
             BytesMessage message = session.createBytesMessage();
             message.setJMSCorrelationID(RANDOM_STRING);
@@ -209,7 +207,7 @@ public class LotusJmsService   {
         }catch (Exception e) {
             System.out.println("*****************");
             System.out.println(e.getMessage());
-            e.printStackTrace();
+            AAAServer.logger.error("Error receive data from JMS ", e);
         }
         if (receive instanceof BytesMessage) {
             String responseType = receive.getStringProperty("responseType");
@@ -223,41 +221,6 @@ public class LotusJmsService   {
             return null;
         }
 
-//        Message receive = null;
-//
-//        String selector1 = String.format("JMSCorrelationID = '%s'", correlationId);
-//        String selector2 = String.format("transactionId = '%s'", correlationId);
-//
-//        System.out.println("Trying selector: " + selector1);
-//        receive = template.receiveSelected(responseQueue, selector1);
-//
-//        if (receive == null) {
-//            System.out.println("No response by JMSCorrelationID. Trying selector: " + selector2);
-//            receive = template.receiveSelected(responseQueue, selector2);
-//        }
-//
-//        if (receive == null) {
-//            System.out.println("No JMS response found for id=" + correlationId);
-//            return null;
-//        }
-//
-//        System.out.println("Received JMSCorrelationID=" + receive.getJMSCorrelationID());
-//        System.out.println("Received transactionId=" + receive.getStringProperty("transactionId"));
-//        System.out.println("Received responseFilter=" + receive.getStringProperty("responseFilter"));
-//        System.out.println("Received filter=" + receive.getStringProperty("filter"));
-//
-//        if (receive instanceof BytesMessage) {
-//            String responseType = receive.getStringProperty("responseType");
-//            String body = extractMessageBody(receive);
-//
-//            if ("FAILED".equals(responseType)) {
-//                throw new CoreException(body);
-//            }
-//
-//            return body;
-//        }
-//
-//        return null;
     }
 
     private String extractMessageBody(Message receive) throws JMSException, IOException {

@@ -18,12 +18,6 @@ import com.caspian.banking.model.messages.MGCustomerExistenceInquiryMsg;
 import com.caspian.banking.model.messages.MGIbanInquiryServiceMsg;
 import com.caspian.banking.util.DateUtil;
 import com.caspian.moderngateway.core.channelmanagerinfrastructure.exception.ChannelManagerException;
-import com.caspian.moderngateway.core.coreservice.dto.ChBaseSearchChequeBookRequestBean;
-import com.caspian.moderngateway.core.coreservice.dto.ChChangePasswordRequestBean;
-import com.caspian.moderngateway.core.coreservice.dto.ChChequeSearchRequestBean;
-import com.caspian.moderngateway.core.message.ChangePasswordMsg;
-import com.caspian.moderngateway.core.message.GetChequeBookListMsg;
-import com.caspian.moderngateway.core.message.GetChequeMsg;
 import com.caspian.pichak.exceptions.CoreException;
 import com.caspian.pichak.exceptions.PichakException;
 import com.caspian.pichak.model.dto.ISOMessageDTO;
@@ -36,7 +30,7 @@ import com.caspian.pichak.utility.AAAServer;
 import com.caspian.pichak.utility.Util;
 import com.google.gson.*;
 import com.pb.ouc.util.util.Utility;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -46,8 +40,7 @@ import java.util.Iterator;
 import java.util.*;
 
 
-@RestController
-@RequestMapping({"/digital/atm"})
+@Service
 public class ATMResource extends BaseResource {
     private Utility utility = new Utility();
     private Util util = new Util();

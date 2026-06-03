@@ -2,6 +2,7 @@ package com.caspian.pichak.ResourceServer;
 
 import com.caspian.banking.ebanking.message.card.MGLoadCardCustomerInfoByNumberMsg;
 import com.caspian.pichak.model.dto.ISOMessageDTO;
+import com.caspian.pichak.service.ResponseHelper;
 import com.caspian.pichak.utility.AAAServer;
 import com.caspian.pichak.utility.iso.IsoParser;
 import com.google.gson.Gson;
@@ -40,8 +41,7 @@ public class SocketMultiServer implements Runnable {
 
     @Autowired
     private ATMResource atmResource;
-    @Autowired
-    private PublicResource publicResource;
+
 
     public static void main(String[] args) {
         SocketMultiServer server = new SocketMultiServer();
@@ -82,23 +82,27 @@ public class SocketMultiServer implements Runnable {
         this.start(this.port);
     }
 
-    private String callService(ISOMessageDTO msg)  {
+    private String callService(ISOMessageDTO msg) {
+        long rrn = msg.getRrn();
+        AAAServer.logger.info("Processing RRN {} - Service {}", rrn, msg.getServiceCode());
 
-        switch (msg.getServiceCode()) {
-            case 2:
-                return atmResource.chequeInquiry(msg);
-            case 4:
-                return atmResource.getCustomerInfo(msg);
-            case 6:
-                return atmResource.chequeRegister(msg);
-            case 8:
-                return atmResource.chequeAccept(msg);
-            case 10:
-                return atmResource.chequeTransfer(msg);
-            case 12:
-                return atmResource.getChequeAndDebtInquiry(msg);
-            default:
-                return "{\"error\":{\"code\":-1,\"message\":\"Service not supported\"}}";
+        try {
+            String result = switch (msg.getServiceCode()) {
+                case 2 -> atmResource.chequeInquiry(msg);
+                case 4 -> atmResource.getCustomerInfo(msg);
+                case 6 -> atmResource.chequeRegister(msg);
+                case 8 -> atmResource.chequeAccept(msg);
+                case 10 -> atmResource.chequeTransfer(msg);
+                case 12 -> atmResource.getChequeAndDebtInquiry(msg);
+                default -> ResponseHelper.createErrorResponse("-1", "Service not supported");
+            };
+
+            AAAServer.logger.info("RRN {} - Service {} completed", rrn, msg.getServiceCode());
+            return result;
+
+        } catch (Exception e) {
+            AAAServer.logger.error("RRN {} - Service {} failed: {}", rrn, msg.getServiceCode(), e.getMessage(), e);
+            return ResponseHelper.createErrorResponse("-1", "Internal error");
         }
     }
 
@@ -193,7 +197,7 @@ public class SocketMultiServer implements Runnable {
                         if (errorCode.equals("0")) {
                             responseMessage = jsonObject.get("message").getAsString().replaceAll("\"", "");
                         } else {
-//                            errorCode = String.valueOf(errorDao.findByMessage(errorCode).getMessage());
+//
                             errorCode = errorCode;
                         }
 
@@ -229,6 +233,7 @@ public class SocketMultiServer implements Runnable {
                 this.out = null;
                 this.clientSocket = null;
             } catch (Exception e) {
+                AAAServer.logger.error("Error processing TCP message", e);
                 this.in = null;
                 this.out = null;
                 this.clientSocket = null;
