@@ -134,16 +134,17 @@ public class ISOMessageDTO {
         private @NonNull String lastName;
         private @NonNull String clientType;
 
-//        public User(ISOMessageDTO msg) {
-//            this.accessToken = msg.getUser().accessToken;
-//            this.clientType = msg.getUser().clientType;
-//            this.nationalCode = msg.getUser().nationalCode;
-//            this.shahabCode = msg.getUser().shahabCode;
-//            this.mobile = msg.getUser().mobile;
-//            this.firstName = msg.getUser().firstName;
-//            this.lastName = msg.getUser().lastName;
-//            this.customerId = msg.getUser().customerId;
-//        }
+
+
+        public User(ISOMessageDTO msg) {
+            this.clientType = msg.getUser().clientType;
+            this.nationalCode = msg.getUser().nationalCode;
+            this.shahabCode = msg.getUser().shahabCode;
+            this.mobile = msg.getUser().mobile;
+            this.firstName = msg.getUser().firstName;
+            this.lastName = msg.getUser().lastName;
+            this.customerId = msg.getUser().customerId;
+        }
 
         public String toString() {
             return (new Gson()).toJson(this);

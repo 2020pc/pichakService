@@ -6,6 +6,8 @@ import com.caspian.pichak.service.ResponseHelper;
 import com.caspian.pichak.utility.AAAServer;
 import com.caspian.pichak.utility.iso.IsoParser;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pb.ouc.util.util.Utility;
 import jakarta.annotation.PostConstruct;
@@ -24,6 +26,8 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 
 @Service
@@ -86,14 +90,22 @@ public class SocketMultiServer implements Runnable {
         long rrn = msg.getRrn();
         AAAServer.logger.info("Processing RRN {} - Service {}", rrn, msg.getServiceCode());
 
+        JsonObject request = msg.getBody();
+        request.addProperty("sessionId", msg.getSessionId());
+        request.addProperty("nationalCode", msg.getUser().getNationalCode());
+        request.addProperty("shahabCode", msg.getUser().getShahabCode());
+        request.addProperty("customerId", msg.getUser().getCustomerId());
+        request.addProperty("name", msg.getUser().getFirstName() + " " + msg.getUser().getLastName());
+        request.addProperty("clientType", msg.getUser().getClientType());
+        request.addProperty("rrn", msg.getRrn());
         try {
             String result = switch (msg.getServiceCode()) {
-                case 2 -> atmResource.chequeInquiry(msg);
-                case 4 -> atmResource.getCustomerInfo(msg);
-                case 6 -> atmResource.chequeRegister(msg);
-                case 8 -> atmResource.chequeAccept(msg);
-                case 10 -> atmResource.chequeTransfer(msg);
-                case 12 -> atmResource.getChequeAndDebtInquiry(msg);
+                case 2 -> atmResource.chequeInquiry(request.toString());
+                case 4 -> atmResource.getCustomerInfo(request.toString());
+                case 6 -> atmResource.chequeRegister(request.toString());
+                case 8 -> atmResource.chequeAccept(request.toString());
+                case 10 -> atmResource.chequeTransfer(request.toString());
+                case 12 -> atmResource.getChequeAndDebtInquiry(request.toString());
                 default -> ResponseHelper.createErrorResponse("-1", "Service not supported");
             };
 
@@ -104,30 +116,42 @@ public class SocketMultiServer implements Runnable {
             AAAServer.logger.error("RRN {} - Service {} failed: {}", rrn, msg.getServiceCode(), e.getMessage(), e);
             return ResponseHelper.createErrorResponse("-1", "Internal error");
         }
+
+
+
     }
 
     private void getUserInfo(ISOMessageDTO msg) throws Exception {
 
-        MGLoadCardCustomerInfoByNumberMsg.Outbound customerInfo;
-        try {
 
-            customerInfo = atmResource.getCustomerInfoByPanCore(msg.getPan());
-        } catch (Exception e) {
-            throw new Exception(e.toString());
-        }
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("pan", msg.getPan());
+        jsonObject.addProperty("rrn", msg.getRrn());
+        String response = atmResource.getCustomerInfoByPanCore(jsonObject.toString());
         msg.getClass();
         ISOMessageDTO.User user = new ISOMessageDTO.User();
-        user.setCustomerId(customerInfo.getCardCustomerInfoResponseDto().getCustomerId().toString());
-        user.setFirstName(customerInfo.getCardCustomerInfoResponseDto().getFirstName());
-        user.setLastName(customerInfo.getCardCustomerInfoResponseDto().getLastName());
-        user.setNationalCode(customerInfo.getCardCustomerInfoResponseDto().getNationalCode());
-        user.setClientType(customerInfo.getCardCustomerInfoResponseDto().getClientType().toString());
-        user.setShahabCode(msg.getBody().get("shahabCode").getAsString());
-        customerInfo.getContactInfoDTOS().stream().filter(x -> x.getContactType().equals("M")).findFirst().ifPresent(x -> {
-            user.setMobile(x.getContactValue());
-        });
-
+        JsonObject object = (JsonObject)this.gson.fromJson(response, JsonObject.class);
+        JsonObject error = object.getAsJsonObject("error");
+        if (!error.get("code").getAsString().equals("0")) {
+            throw new Exception(error.toString());
+        } else {
+            JsonElement messageElement = (JsonElement)this.gson.fromJson(object.get("message").getAsString(), JsonElement.class);
+            JsonObject message = messageElement.getAsJsonObject();
+            JsonObject chCardCustomerInfoResponseBean = message.get("cardCustomerInfoResponseDto").getAsJsonObject();
+            user.setCustomerId(chCardCustomerInfoResponseBean.get("customerId").getAsString());
+            user.setNationalCode(chCardCustomerInfoResponseBean.get("nationalCode").getAsString());
+            user.setShahabCode(message.get("shahabCode").getAsString());
+            user.setFirstName(chCardCustomerInfoResponseBean.get("firstName").getAsString());
+            user.setLastName(chCardCustomerInfoResponseBean.get("lastName").getAsString());
+            user.setClientType(chCardCustomerInfoResponseBean.get("clientType").getAsString());
+            JsonArray chContactInfoBeanList = message.get("contactInfoDTOS").getAsJsonArray();
+            chContactInfoBeanList.forEach((o) -> {
+                if (o.getAsJsonObject().get("contactType").getAsString().equals("M")) {
+                    user.setMobile(o.getAsJsonObject().get("contactValue").getAsString());
+                }
+            });
             msg.setUser(user);
+        }
     }
 
 
@@ -211,32 +235,31 @@ public class SocketMultiServer implements Runnable {
                             errorCode = "127";
                         }
                     } finally {
-                        byte[] e = null;
-                        byte[] var25 = null;
-                        this.out.write(isoParser.makeResponse(responseMessage, isoMessageDTO, errorCode));
+
+                        out.write(isoParser.makeResponse(responseMessage, isoMessageDTO, errorCode));
                     }
                 }
             } catch (Exception e) {
                 AAAServer.logger.error(e.getMessage());
             } finally {
-                this.closeSocket();
+                closeSocket();
             }
 
         }
 
         private void closeSocket() {
             try {
-                this.in.close();
-                this.out.close();
-                this.clientSocket.close();
-                this.in = null;
-                this.out = null;
-                this.clientSocket = null;
+                in.close();
+                out.close();
+                clientSocket.close();
+                in = null;
+                out = null;
+                clientSocket = null;
             } catch (Exception e) {
                 AAAServer.logger.error("Error processing TCP message", e);
-                this.in = null;
-                this.out = null;
-                this.clientSocket = null;
+                in = null;
+                out = null;
+                clientSocket = null;
                 e.printStackTrace();
             }
 

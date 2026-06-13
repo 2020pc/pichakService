@@ -34,6 +34,27 @@
     </Appenders>
 
     <Loggers>
+        <!-- NEW: JMS/LOTUS DEBUG logging -->
+        <Logger name="com.caspian.pichak.service.lotus" level="debug" additivity="false">
+            <AppenderRef ref="LogToConsole"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile" level="error"/>
+        </Logger>
+
+        <!-- NEW: JMS DEBUG logging -->
+        <Logger name="javax.jms" level="debug" additivity="false">
+            <AppenderRef ref="LogToConsole"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile" level="error"/>
+        </Logger>
+
+        <!-- NEW: WebLogic JMS DEBUG logging -->
+        <Logger name="weblogic.jms" level="debug" additivity="false">
+            <AppenderRef ref="LogToConsole"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile" level="error"/>
+        </Logger>
+
         <!-- Your package: INFO level to both console and file -->
         <Logger name="com.caspian" level="info" additivity="false">
             <AppenderRef ref="LogToConsole"/>

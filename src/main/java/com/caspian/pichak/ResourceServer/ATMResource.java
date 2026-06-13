@@ -11,6 +11,7 @@ import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakAcceptChequeM
 import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakInquiryChequeMsg;
 import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakIssueChequeMsg;
 import com.caspian.banking.ebanking.message.deposit.pichak.MGPichakTransferChequeMsg;
+import com.caspian.banking.lending.message.spl.GetCustomerInformationMsg;
 import com.caspian.banking.message.RequestType;
 import com.caspian.banking.model.dto.ChCustomerExistenceInquiryRequestDto;
 import com.caspian.banking.model.dto.ChCustomerExistenceInquiryResponseDto;
@@ -47,21 +48,21 @@ public class ATMResource extends BaseResource {
 
 
 
-    public String chequeRegister(@RequestBody ISOMessageDTO message) {
+    public String chequeRegister(String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-
+            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
             String sessionId = "";
-            String sayadId = message.getBody().get("sayadId").getAsString();
-            String amount = message.getBody().get("amount").getAsString();
-            String date = message.getDate();
+            String sayadId = jsonObject.get("sayadId").getAsString();
+            String amount = jsonObject.get("amount").getAsString();
+            String date = jsonObject.get("date").getAsString();
             String description = "register from ATM";
-            String reason = message.getBody().get("reason").getAsString();
-            JsonElement toIban =message.getBody().get("toIban");
-            int chequeType = message.getBody().get("chequeType").getAsInt();
-            String ibanEnquiryResponse = ibanEnquiry(message.getBody().get("iban").getAsString());
+            String reason = jsonObject.get("reason").getAsString();
+            JsonElement toIban = jsonObject.get("toIban");
+            int chequeType = jsonObject.get("chequeType").getAsInt();
+            String ibanEnquiryResponse = ibanEnquiry(message);
             PichakError pichakError = new PichakError(ibanEnquiryResponse);
             if (pichakError != null && !pichakError.getCode().equals("0")) {
                 throw new Exception(pichakError.getMessage());
@@ -75,7 +76,7 @@ public class ATMResource extends BaseResource {
                     throw new PichakException("errorCode01:IBAN_MISTAKE", "IBAN_MISTAKE");
                 } else {
                     String accountNumber = responseBean.get("accountNumber").getAsString();
-                    JsonArray receivers = message.getBody().get("receivers").getAsJsonArray();
+                    JsonArray receivers = jsonObject.get("receivers").getAsJsonArray();
                     List<ChPichakPersonInfoDto> chPichakPersonInfoBeanList = new ArrayList();
 
                     for (JsonElement object : receivers) {
@@ -201,25 +202,25 @@ public class ATMResource extends BaseResource {
     }
 
 
-    public String chequeTransfer(ISOMessageDTO message) {
+    public String chequeTransfer(@RequestBody String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-
-            String sayadId = message.getBody().get("sayadId").getAsString();
-            JsonElement toIban = message.getBody().get("toIban");
-            String nationalCode = message.getUser().getNationalCode();
-            long customerId = Long.parseLong(message.getUser().getCustomerId());
-            int accept = message.getBody().get("accept").getAsInt();
-            JsonElement giveBack = message.getBody().get("giveBack");
-            JsonElement reason = message.getBody().get("reason");
+            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
+            String sayadId = jsonObject.get("sayadId").getAsString();
+            JsonElement toIban = jsonObject.get("toIban");
+            String nationalCode = jsonObject.get("nationalCode").getAsString();
+            long customerId = jsonObject.get("customerId").getAsLong();
+            int accept = jsonObject.get("accept").getAsInt();
+            JsonElement giveBack = jsonObject.get("giveBack");
+            JsonElement reason = jsonObject.get("reason");
             String description = "transfer from ATM";
             ChPichakTransferChequeDto requestBean = new ChPichakTransferChequeDto();
-            ChPichakInquiryChequeRespDto chPichakInquiryChequeRespDto = chequeInquiry(sayadId, nationalCode, customerId);
-//            JsonObject ibanRequest = new JsonObject();
-//            ibanRequest.addProperty("iban", chPichakInquiryChequeRespDto.getFromIban());
-            String ibanEnquiryResponse = ibanEnquiry(chPichakInquiryChequeRespDto.getFromIban());
+            ChPichakInquiryChequeRespDto chPichakInquiryChequeRespDto = this.chequeInquiry(sayadId, nationalCode, customerId);
+            JsonObject ibanRequest = new JsonObject();
+            ibanRequest.addProperty("iban", chPichakInquiryChequeRespDto.getFromIban());
+            String ibanEnquiryResponse = this.ibanEnquiry(this.gson.toJson(ibanRequest));
             PichakError pichakError = new PichakError(ibanEnquiryResponse);
             if (pichakError != null && !pichakError.getCode().equals("0")) {
                 throw new Exception(pichakError.getMessage());
@@ -251,7 +252,7 @@ public class ATMResource extends BaseResource {
                             requestBean.setToIban(toIban.getAsString());
                         }
 
-                        JsonArray receivers = message.getBody().get("receivers").getAsJsonArray();
+                        JsonArray receivers = jsonObject.get("receivers").getAsJsonArray();
                         List<ChPichakPersonInfoDto> chPichakPersonInfoBeanList = new ArrayList();
 
                         for (JsonElement object : receivers) {
@@ -287,8 +288,8 @@ public class ATMResource extends BaseResource {
                         requestBean.setReceivers(chPichakPersonInfoBeanList);
                     }
 
-                    String name = message.getBody().get("name").getAsString();
-                    String clientType = message.getBody().get("clientType").getAsString();
+                    String name = jsonObject.get("name").getAsString();
+                    String clientType = jsonObject.get("clientType").getAsString();
                     ClientType type = ClientType.fromValue(clientType);
                     ChPichakPersonInfoDto pichakPersonInfoBean = new ChPichakPersonInfoDto();
                     pichakPersonInfoBean.setName(name);
@@ -439,7 +440,7 @@ public class ATMResource extends BaseResource {
     }
 
 
-    public String ibanEnquiry( String iban) {
+    public String ibanEnquiry(String iban) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
@@ -464,16 +465,20 @@ public class ATMResource extends BaseResource {
     }
 
 
-    public String chequeInquiry( ISOMessageDTO message) {
+    public String chequeInquiry(String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-            String sayadId = message.getUser().getShahabCode();
-            String nationalCode = message.getUser().getNationalCode();
-            String customerId = message.getUser().getCustomerId();
+            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
+            String sayadId = jsonObject.get("sayadId").getAsString();
+            String nationalCode = jsonObject.get("nationalCode").getAsString();
+            String customerId = jsonObject.get("customerId").getAsString();
             ChPichakPersonInfoDto client = new ChPichakPersonInfoDto();
-            client.setShahabId(message.getUser().getShahabCode());
+            if (jsonObject.get("shahabId") != null) {
+                String shahabId = jsonObject.get("shahabId").getAsString();
+                client.setShahabId(shahabId);
+            }
 
             AAAServer.logger.info("****chequeInquiry****");
             AAAServer.logger.info("sayadId: " + sayadId);
@@ -481,14 +486,13 @@ public class ATMResource extends BaseResource {
             AAAServer.logger.info("customerId: " + customerId);
             AAAServer.logger.info("shahabId: " + client.getShahabId());
             MGPichakInquiryChequeMsg.Inbound inbound = new MGPichakInquiryChequeMsg.Inbound();
-            client.setCustomerID(message.getUser().getCustomerId());
+            client.setCustomerID(nationalCode);
             inbound.setClient(client);
             inbound.setClientId(Long.valueOf(customerId));
             inbound.setSayadId(sayadId);
             AAAServer.logger.info("inbound: " + gson.toJson(inbound));
-
-            MGPichakInquiryChequeMsg.Outbound outbound = lotusJmsService.sendInquiry(inbound);
-
+            String id = lotusJmsService.send(coreUsername, coreBranchcode, "channelManagement.MGPichakInquiryChequeMsg", RequestType.INQUIRY, inbound);
+            MGPichakInquiryChequeMsg.Outbound outbound = lotusJmsService.receive(id, MGPichakInquiryChequeMsg.Outbound.class);
             ChPichakInquiryChequeRespDto responseDto = outbound.getResponseDto();
             AAAServer.logger.info("outbound:" + gson.toJson(outbound));
             ChPichakExceptionDto exceptionBean = outbound.getExceptionDto();
@@ -592,21 +596,22 @@ public class ATMResource extends BaseResource {
     }
 
 
-    public String chequeAccept(ISOMessageDTO message) {
+    public String chequeAccept(String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-            String sayadId = message.getBody().get("sayadId").getAsString();
-            String accept = message.getBody().get("accept").getAsString();
-            String name = message.getBody().get("name").getAsString();
-            String clientType = message.getBody().get("clientType").getAsString();
+            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
+            String sayadId = jsonObject.get("sayadId").getAsString();
+            String accept = jsonObject.get("accept").getAsString();
+            String name = jsonObject.get("name").getAsString();
+            String clientType = jsonObject.get("clientType").getAsString();
             ClientType type = ClientType.fromValue(clientType);
             RejectCauseType rejectCauseType = RejectCauseType.fromValue(accept);
             ChPichakPersonInfoDto acceptorClient = new ChPichakPersonInfoDto();
-            String shahabId = message.getBody().get("shahabCode").getAsString();
+            String shahabId = jsonObject.get("shahabCode").getAsString();
             acceptorClient.setShahabId(shahabId);
-            String customerID = message.getBody().get("nationalCode").getAsString();
+            String customerID = jsonObject.get("nationalCode").getAsString();
             MGPichakAcceptChequeMsg.Inbound inbound = new MGPichakAcceptChequeMsg.Inbound();
             ChPichakAcceptChequeDto requestBean = new ChPichakAcceptChequeDto();
             requestBean.setSayadId(sayadId);
@@ -661,13 +666,14 @@ public class ATMResource extends BaseResource {
     }
 
 
-    public String getCustomerInfo(ISOMessageDTO  message) {
+    public String getCustomerInfo(String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-            String nationalCode = message.getUser().getNationalCode();
-            String nationalCodeType =message.getBody().get("customerNationalType").getAsString();
+            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
+            String nationalCode = jsonObject.get("customerNationalCode").getAsString();
+            String nationalCodeType = jsonObject.get("customerNationalType").getAsString();
             NationalCodeType type = NationalCodeType.fromValue(nationalCodeType);
             MGCustomerExistenceInquiryMsg.Inbound inbound = new MGCustomerExistenceInquiryMsg.Inbound();
             ChCustomerExistenceInquiryRequestDto requestDto = new ChCustomerExistenceInquiryRequestDto();
@@ -686,7 +692,8 @@ public class ATMResource extends BaseResource {
             }
 
             inbound.setRequestDto(requestDto);
-            MGCustomerExistenceInquiryMsg.Outbound outbound = lotusJmsService.sendInquiry(inbound);
+            String id = this.lotusJmsService.send(this.coreUsername, this.coreBranchcode, "channelManagement.MGCustomerExistenceInquiryMsg", RequestType.INQUIRY, inbound);
+            MGCustomerExistenceInquiryMsg.Outbound outbound = lotusJmsService.receive(id, MGCustomerExistenceInquiryMsg.Outbound.class);
             ChCustomerExistenceInquiryResponseDto responseDto = outbound.getResponseDto();
             byte[] response = new byte[256];
             int index = 0;
@@ -714,29 +721,69 @@ public class ATMResource extends BaseResource {
         }
     }
 
-    public MGLoadCardCustomerInfoByNumberMsg.Outbound getCustomerInfoByPanCore(@RequestBody String pan) throws Exception {
-
-
-        try {
-            MGLoadCardCustomerInfoByNumberMsg.Inbound inbound = new MGLoadCardCustomerInfoByNumberMsg.Inbound();
-            inbound.setCardNumber(pan);
-//            inbound.setCardNumber("6221061023186077");
-            inbound.setValidateCvv2AndExpireDate(false);
-            MGLoadCardCustomerInfoByNumberMsg.Outbound res = lotusJmsService.sendInquiry(inbound);
-            return res;
-
-        } catch (Exception e) {
-            AAAServer.logger.error("stack trace", e);
-            throw new Exception(e);
-        }
-    }
-
-    public String getChequeAndDebtInquiry(ISOMessageDTO message) {
+    public String getCustomerInfoByPanCore(String message) {
         ResponseMessage responseMessage = new ResponseMessage();
         PichakError error = new PichakError();
 
         try {
-            String sayadId = message.getBody().get("sayadId").getAsString();
+            JsonObject jsonObject = this.gson.fromJson(message, JsonObject.class);
+            String pan = jsonObject.get("pan").getAsString();
+//            String pan = "6221061023186077";
+            MGLoadCardCustomerInfoByNumberMsg.Inbound inbound = new MGLoadCardCustomerInfoByNumberMsg.Inbound();
+            inbound.setCardNumber(pan);
+            inbound.setValidateCvv2AndExpireDate(false);
+            String id = this.lotusJmsService.send(this.coreUsername, this.coreBranchcode, "channelManagement.MGLoadCardCustomerInfoByNumber", RequestType.TRANSACTION, inbound);
+            String outbound = this.lotusJmsService.receive(id);
+            JsonObject responseObj = (JsonObject)this.gson.fromJson(outbound, JsonObject.class);
+            JsonObject requestMsg = new JsonObject();
+            JsonObject cardCustomerInfoResponseDto = responseObj.get("cardCustomerInfoResponseDto").getAsJsonObject();
+            requestMsg.add("customerNumber", cardCustomerInfoResponseDto.get("customerId"));
+            String customerInformation = getCustomerInformation(this.gson.toJson(requestMsg));
+            JsonObject customerInformationObj = (JsonObject)this.gson.fromJson(customerInformation, JsonObject.class);
+            JsonElement customerInformationMessage = (JsonElement)this.gson.fromJson(customerInformationObj.get("message").getAsString(), JsonElement.class);
+            JsonObject messageObj = (JsonObject)this.gson.fromJson(customerInformationMessage.getAsString(), JsonObject.class);
+            JsonObject customerDTO = messageObj.get("customerDTO").getAsJsonObject();
+            responseObj.add("shahabCode", customerDTO.get("shahabCode"));
+            responseMessage.setMessage(responseObj);
+        } catch (Exception e) {
+            AAAServer.logger.error("stack trace", e);
+            error = new PichakError(e);
+        } finally {
+            responseMessage.setError(error);
+            AAAServer.logger.info(responseMessage.toString());
+            return responseMessage.toString();
+        }
+    }
+
+    public String getCustomerInformation(@RequestBody String message) {
+        ResponseMessage responseMessage = new ResponseMessage();
+        PichakError error = new PichakError();
+
+        try {
+            JsonObject jsonObject = (JsonObject)this.gson.fromJson(message, JsonObject.class);
+            long cif = jsonObject.get("customerNumber").getAsLong();
+            GetCustomerInformationMsg.Inbound inbound = new GetCustomerInformationMsg.Inbound();
+            inbound.setCustomerNumber(cif);
+            String id = this.lotusJmsService.send(this.coreUsername, this.coreBranchcode, "lending.generalFile.GetCustomerInformationMsg", RequestType.TRANSACTION, inbound);
+            String outbound = this.lotusJmsService.receive(id);
+            responseMessage.setMessage(outbound);
+        } catch (Exception e) {
+            AAAServer.logger.error("stack trace", e);
+            error = new PichakError(e);
+        } finally {
+            responseMessage.setError(error);
+            AAAServer.logger.info(responseMessage.toString());
+            return responseMessage.toString();
+        }
+    }
+
+    public String getChequeAndDebtInquiry(String message) {
+        ResponseMessage responseMessage = new ResponseMessage();
+        PichakError error = new PichakError();
+
+        try {
+            JsonObject jsonObject = gson.fromJson(message, JsonObject.class);
+            String sayadId = jsonObject.get("sayadId").getAsString();
             ChequeInquiryBySayadIdMsg.Inbound inbound = new ChequeInquiryBySayadIdMsg.Inbound();
             inbound.setChequeSerial(sayadId);
             String id = lotusJmsService.send(coreUsername, coreBranchcode, "deposit.cheque.sayad.ChequeInquiryBySayadIdMsg", RequestType.INQUIRY, inbound);
